@@ -1,40 +1,40 @@
 package cs590.week1
 
 /**
- * Problem 1: Intro to Scala
- *
- * (largely taken from "Functional Programming Principles in Scala"
- * tought at EPFL and on Coursera)
- */
+  * Problem 1: Intro to Scala
+  *
+  * (largely taken from "Functional Programming Principles in Scala"
+  * tought at EPFL and on Coursera)
+  */
 
 trait FunSets {
 
   /**
-   * This type alias defines how sets are represented.
-   */
+    * This type alias defines how sets are represented.
+    */
   type Set = Int => Boolean
 
   /**
-   * This function tests whether a set contains a given element.
-   */
+    * This function tests whether a set contains a given element.
+    */
   def contains(s: Set, elem: Int): Boolean = s(elem)
 
   /**
-   * This function displays the contents of a set.
-   */
+    * This function displays the contents of a set.
+    */
   def toString(s: Set): String = {
     val xs = for (i <- -1000 to 1000 if contains(s, i)) yield i
     xs.mkString("{", ",", "}")
   }
 
   /**
-   * TODO: construct a single-element Set
-   */
+    * TODO: construct a single-element Set
+    */
   def set(elem: Int): Set = ???
 
   /**
-   * TODO: implement union, intersection, difference, etc
-   */
+    * TODO: implement union, intersection, difference, etc
+    */
   def union(s: Set, t: Set): Set = ???
 
   def intersect(s: Set, t: Set): Set = ???
@@ -57,10 +57,10 @@ trait IntSets {
   abstract class IntSet {
     def incl(x: Int): IntSet
     def contains(x: Int): Boolean
-      
+
     /**
-     * TODO: implement missing functionality (Bonus)
-     */
+      * TODO: implement missing functionality (Bonus)
+      */
 
     // def intersect(that: IntSet): IntSet
     // def intersect0(that: IntSet, accu: IntSet): IntSet
@@ -87,10 +87,8 @@ trait IntSets {
       if (x < elem) new NonEmpty(elem, left.incl(x), right)
       else if (x > elem) new NonEmpty(elem, left, right.incl(x))
       else this
-    
+
     override def toString() = "NonEmpty(%d, %s, %s)".format(elem, left, right)
   }
 
 }
-
-

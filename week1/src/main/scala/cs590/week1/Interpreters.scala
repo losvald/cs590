@@ -1,13 +1,13 @@
 package cs590.week1
 
 /**
- * Problem 2: Definitional Interpreters
- */
+  * Problem 2: Definitional Interpreters
+  */
 
 
 /**
- * Interpreter I from Reynolds' paper
- */
+  * Interpreter I from Reynolds' paper
+  */
 
 trait Interpreter1 {
 
@@ -35,15 +35,15 @@ trait Interpreter1 {
   def ext(z: Ident, a: Val, env: Env): Env = ???
 
   /**
-   * TODO: what is missing? add it in!
-   */
+    * TODO: what is missing? add it in!
+    */
 
 }
 
 
 /**
- * Interpreter II from Reynolds' paper
- */
+  * Interpreter II from Reynolds' paper
+  */
 
 trait Interpreter2 {
 
@@ -68,8 +68,8 @@ trait Interpreter2 {
   case class Lam(fp: Ident, body: Exp) extends Exp
 
   /**
-   * TODO: implement second interpreter from paper
-   */
+    * TODO: implement second interpreter from paper
+    */
 
   def interpret(r: Exp) = eval(r, Init())
 
@@ -81,5 +81,3 @@ trait Interpreter2 {
 
 
 }
-
-
