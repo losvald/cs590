@@ -14,6 +14,9 @@ trait FunSets {
     */
   type Set = Int => Boolean
 
+  protected val elements =
+    (s: Set) => for (i <- -1000 to 1000 if contains(s, i)) yield(i)
+
   /**
     * This function tests whether a set contains a given element.
     */
@@ -23,32 +26,49 @@ trait FunSets {
     * This function displays the contents of a set.
     */
   def toString(s: Set): String = {
-    val xs = for (i <- -1000 to 1000 if contains(s, i)) yield i
+    val xs = for (i <- elements(s)) yield i
     xs.mkString("{", ",", "}")
   }
 
   /**
-    * TODO: construct a single-element Set
+    * Constructs a single-element Set that contains the specified element.
     */
-  def set(elem: Int): Set = ???
+  def set(elem: Int): Set = _ == elem
 
   /**
-    * TODO: implement union, intersection, difference, etc
+    * Constructs a union of the two specified sets.
     */
-  def union(s: Set, t: Set): Set = ???
+  def union(s: Set, t: Set): Set = (elem: Int) => s(elem) || t(elem)
 
-  def intersect(s: Set, t: Set): Set = ???
+  /**
+    * Constructs an intersection of the two specified sets.
+    */
+  def intersect(s: Set, t: Set): Set = (elem: Int) => s(elem) && t(elem)
 
-  def diff(s: Set, t: Set): Set = ???
+  /**
+    * Constructs a difference of the two specified sets.
+    */
+  def diff(s: Set, t: Set): Set = (elem: Int) => s(elem) && !t(elem)
 
-  def filter(s: Set, p: Int => Boolean): Set = ???
+  /**
+    * Constructs a new set out of the specified set such that only
+    * elements that pass the filter are retained.
+    */
+  def filter(s: Set, p: Int => Boolean): Set =
+    (elem: Int) => p(elem) && contains(s, elem)
 
-  def forall(s: Set, p: Int => Boolean): Boolean = ???
+  def forall(s: Set, p: Int => Boolean): Boolean = {
+    val xs = for (i <- elements(s)) yield p(i)
+    xs.foldLeft(true)(_ && _)
+  }
 
-  def exists(s: Set, p: Int => Boolean): Boolean = ???
+  def exists(s: Set, p: Int => Boolean): Boolean = !forall(s, !p(_))
 
-  def map(s: Set, f: Int => Int): Set = ???
-
+  def map(s: Set, f: Int => Int): Set = {
+    // Note: if inverse of w was given, it would be simply: (x: Int) => s(f(x))
+    val xs = for (i <- elements(s)) yield f(i)
+    xs.contains(_)
+  }
 }
 
 
