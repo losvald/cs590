@@ -78,35 +78,78 @@ trait IntSets {
     def incl(x: Int): IntSet
     def contains(x: Int): Boolean
 
-    /**
-      * TODO: implement missing functionality (Bonus)
-      */
+    // The first thing that comes to my mind is to use pattern matching.y
+    // However, I would need to make the derived classes be "case classes",
+    // or at least implement unapply method for each (see below). Then it'd be:
+    // def intersect(that: IntSet): IntSet = (this, that) match {
+    //   case (Empty, _) => this
+    //   case (_, Empty) => that
+    //   case (s1 : NonEmpty(e1, l1, r1), s2 : NonEmpty(e2, l2, r2)) => ...
+    //   // otherwise, the derived class probably knows to intersect better
+    //   case (_, _) => this.intersect(that)    // invoke virtual method
+    // }
+    // Anyway, I guess the indended solution is to use polymorphism only
 
-    // def intersect(that: IntSet): IntSet
-    // def intersect0(that: IntSet, accu: IntSet): IntSet
+    def intersect(that: IntSet): IntSet = intersect0(that, new Empty)
 
-    // def filter(p: Int => Boolean): IntSet
+    def filter(p: Int => Boolean): IntSet = this
 
-    // def intersect2(that: IntSet): IntSet
+    // TODO: How do we hide these auxilliary methods?
+    // (protected doesn't work here for some reason)
+
+    def intersect2(that: IntSet) =
+      filter(elem => this.contains(elem) && that.contains(elem))
+
+    def intersect0(that: IntSet, accu: IntSet): IntSet
+
+    // We could avoid this method by using "case left/right : NonEmpty/Empty",
+    // but that would be an anti-pattern w.r.t. OOP (and also less efficient)
+    def filter0(p: Int => Boolean, accu: IntSet): IntSet
   }
 
   class Empty extends IntSet {
-    def contains(x: Int): Boolean = false
-    def incl(x: Int): IntSet = new NonEmpty(x, new Empty, new Empty)
+    override def contains(x: Int): Boolean = false
+    override def incl(x: Int): IntSet = new NonEmpty(x, new Empty, new Empty)
+
+    override def intersect0(that: IntSet, accu: IntSet) = accu
+
+    override def filter(p: Int => Boolean) = this
+    override def filter0(p: Int => Boolean, accu: IntSet) = accu
 
     override def toString() = "Empty"
   }
 
-  class NonEmpty(elem: Int, left: IntSet, right: IntSet) extends IntSet {
-    def contains(x: Int): Boolean =
+  // TODO: Restrict access to the ctor to Empty only (and this class)?
+  // Make it protected and wrap it in a package???
+  class NonEmpty(elem: Int, left: IntSet = new Empty, right: IntSet = new Empty)
+      extends IntSet {
+
+    // TODO: I tried to implement the "unapply" method, but I got stuck :(
+    //   def unapply(s: NonEmpty): Option[(Int, IntSet, IntSet)] = ???y
+
+    override def contains(x: Int): Boolean =
       if (x < elem) left.contains(x)
       else if (x > elem) right.contains(x)
       else true
 
-    def incl(x: Int): IntSet =
+    override def incl(x: Int): IntSet =
       if (x < elem) new NonEmpty(elem, left.incl(x), right)
       else if (x > elem) new NonEmpty(elem, left, right.incl(x))
       else this
+
+    override def intersect0(that: IntSet, accu: IntSet) =
+      right.intersect0(
+        that,
+        left.intersect0(
+          that,
+          if (that.contains(elem)) accu.incl(elem) else accu
+        )
+      )
+
+    override def filter(p: Int => Boolean) = filter0(p, new Empty)
+
+    override def filter0(p: Int => Boolean, accu: IntSet) =
+      right.filter0(p, left.filter0(p, if (p(elem)) accu.incl(elem) else accu))
 
     override def toString() = "NonEmpty(%d, %s, %s)".format(elem, left, right)
   }
