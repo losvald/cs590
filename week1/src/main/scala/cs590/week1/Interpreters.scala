@@ -23,21 +23,77 @@ trait Interpreter1 {
   case class Var(s: Ident) extends Exp
   case class App(opr: Exp, opnd: Exp) extends Exp
   case class Lam(fp: Ident, body: Exp) extends Exp
+  case class Cond(prem: Exp, conc: Exp, altr: Exp) extends Exp
+  case class Letrec(dvar: Var, dexp: Lam, body: Exp) extends Exp
+  case class Eq(lhs: Exp, rhs: Exp) extends Exp
+  case class Minus(lhs: Exp, rhs: Exp) extends Exp
+  case class Mult(lhs: Exp, rhs: Exp) extends Exp
 
   def eval(e: Exp, env: Env): Val = e match {
     case Const(x) => x
     case Var(x)   => env(x)
-    case App(f,x) => eval(f,env).asInstanceOf[Fun](eval(x,env))
-    case Lam(x,e) => evlambda(x,e,env)
+    case App(f,x) => {
+      System.err.println("> App(" + f + ", " + x + ")")
+      val fVal = eval(f,env)
+      System.err.println("App::f = " + f)
+      System.err.println("App::fVal = " + fVal)
+      val xVal = eval(x,env)
+      System.err.println("App::xVal = " + xVal)
+      val ret = fVal.asInstanceOf[Fun](xVal)
+      System.err.println(ret + " -> f(" + fVal + ", " + xVal + ")")
+      ret
+    }
+    case Lam(x,e) => {
+      System.err.println("> Lam(" + x + ", " + e)
+      evlambda(x,e,env)
+    }
+    case Cond(p,c,a) => {
+      if (eval(p,env).asInstanceOf[Boolean]) eval(c,env)
+      else eval(a,env)
+    }
+    case Letrec(v,x,b) => {
+      // def env2(s: Ident) = if (s == v.s) evlambda(v.s, x, env2) else env(s)
+      def env2(s: Ident): Val = {
+        System.err.println("> env2(" + s + ") v=" + v + " x=" + x + " b=" + b)
+        val ret = if (s == v.s) evlambda(s, x, env2) else env(s)
+        // TODO: interestingly, eval(Letrec) returns a value after changing to:
+        //  ret = if (s == v.s) evlambda(s, x, env2)(x) else env(s)
+        // but this breaks the recursion
+        System.err.println(ret + " -> env2(" + s + ")")
+        ret
+      }
+
+      System.err.println("> Letrec " + v + " = " + x + "\nIN " + b)
+      eval(b, env2)
+    }
+    case Eq(lhs: Exp, rhs: Exp) => (lhs, rhs) match {
+      // we need to be careful not to evaluate lambdas
+      case (Lam(fp1, _), Lam(fp2, _)) => fp1 == fp2
+      case (_, _) => eval(lhs, env) == eval(rhs, env)
+    }
+
+    case Minus(lhs: Exp, rhs: Exp) => (eval(lhs, env), eval(rhs, env)) match {
+      case (lhs: Int, rhs: Int) => lhs - rhs
+      case (lhs: Boolean, rhs: Boolean) => lhs && !rhs
+    }
+    case Mult(lhs: Exp, rhs: Exp) => (eval(lhs, env), eval(rhs, env)) match {
+      case (lhs: Int, rhs: Int) => lhs * rhs
+      case (lhs: Boolean, rhs: Boolean) => lhs && rhs
+    }
   }
 
-  def evlambda(x: Ident, e: Exp, env: Env) = (a: Val) => eval(e,ext(x,a,env))
-  def ext(z: Ident, a: Val, env: Env): Env = ???
-
-  /**
-    * TODO: what is missing? add it in!
-    */
-
+  def evlambda(x: Ident, e: Exp, env: Env) = {
+    System.err.println("> evlambda(" + x + ", " + e)
+    (a: Val) => {
+      System.err.println("eval lambda(" + x + ", " + e + ")(" + a + ") with")
+      val env2 = ext(x,a,env)
+      eval(e, env2)
+    }
+  }
+  def ext(z: Ident, a: Val, env: Env): Env = {
+    System.err.println("> ext: " + z + " := " + a)
+    (s: Ident) => if (s == z) a else env(s)
+  }
 }
 
 

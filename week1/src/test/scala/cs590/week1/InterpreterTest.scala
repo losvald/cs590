@@ -3,13 +3,55 @@ package cs590.week1
 import org.scalatest.FunSuite
 
 class InterpreterTest extends FunSuite with Interpreter1 {
-
-  ignore("fact") {
-    /**
-      * TODO: interpret factorial function
-      */
+  test("Mult Int") {
+    assert(eval(Mult(Const(3), Const(4)), _ => 0) === 12)
+    assert(eval(Mult(Const(3), Const(0)), _ => 0) === 0)
   }
 
+  test("Mult Boolean") {
+    val env0 = (x: Ident) => false
+    assert(eval(Mult(Const(false), Const(true)), env0) === false)
+    assert(eval(Mult(Const(true), Const(false)), env0) === false)
+    assert(eval(Mult(Const(false), Const(false)), env0) === false)
+    assert(eval(Mult(Const(true), Const(true)), env0) === true)
+  }
+
+  test("Minus") {
+    assert(eval(Minus(Const(5), Const(3)), _ => 0) === 2)
+    for (env0 <- Seq((x: Ident) => false, (x: Ident) => true)) {
+      assert(eval(Minus(Const(true), Const(false)), env0) === true)
+      assert(eval(Minus(Const(false), Const(false)), env0) === false)
+    }
+  }
+
+  test("Cond Eq Int") {
+    val c1 = Const(1)
+    assert(eval(Cond(Eq(c1, c1), Const(2), Const(3)), _ => 0) === 2)
+    assert(eval(Cond(Eq(c1, Const(4)), Const(2), Const(3)), _ => 0) === 3)
+  }
+
+  test("Cond Eq Lam") {
+    val tauto = Lam("tauto", Const(false))
+    val fakeTauto = Lam("tauto2", Const(false))
+    val implTauto = Lam("tauto", Const(0))
+    assert(eval(Cond(Eq(tauto, tauto), Const(1), Const(2)), _ => 0) === 1)
+    assert(eval(Cond(Eq(tauto, fakeTauto), Const(1), Const(2)), _ => 0) === 2)
+    assert(eval(Cond(Eq(tauto, implTauto), Const(1), Const(2)), _ => 0) === 1)
+  }
+
+  test("fact") {
+    // TODO: fix a weird problem: Letrec(...) evaluates to a function pointer??
+    assert(eval(
+      Letrec(
+        Var("fact"), Lam("n",
+          Cond(Eq(Var("n"), Const(0)),
+            Const(1),                     // terminating case (0! == 1)
+            App(Var("fact"), Minus(Var("n"), Const(1))))),
+            // App(Var("fact"), Const(0)))), // same problem here
+            // Const(120))), // this works fine with "fix" in Interpreter's TODO
+        App(Var("fact"), Const(5))),
+      _ => 0) === 1 * 2 * 3 * 4 * 5)
+  }
 }
 
 
