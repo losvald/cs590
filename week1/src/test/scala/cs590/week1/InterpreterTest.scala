@@ -39,18 +39,33 @@ class InterpreterTest extends FunSuite with Interpreter1 {
     assert(eval(Cond(Eq(tauto, implTauto), Const(1), Const(2)), _ => 0) === 1)
   }
 
+  test("apply lambda (first order)") {
+    def evalMinus2(n: Val) =
+      eval(App(Lam("n", Minus(Var("n"), Const(2))), Const(n)), _ => 0)
+    assert(evalMinus2(5) === 3)
+    assert(evalMinus2(1) === -1)
+  }
+
+  test("apply lambda (higher order)") {
+    def minusN(n: Val) = Lam("x", Minus(Var("x"), Const(n)))
+    def callLambdaWith42(lam: Lam) =
+      eval(App(Lam("lam", App(Var("lam"), Const(42))), lam), _ => 0)
+    assert(callLambdaWith42(minusN(84)) === -42)
+    assert(callLambdaWith42(minusN(0)) === 42)
+  }
+
   test("fact") {
-    // TODO: fix a weird problem: Letrec(...) evaluates to a function pointer??
-    assert(eval(
+    def callFact(n: Val) = eval(
       Letrec(
         Var("fact"), Lam("n",
           Cond(Eq(Var("n"), Const(0)),
             Const(1),                     // terminating case (0! == 1)
-            App(Var("fact"), Minus(Var("n"), Const(1))))),
-            // App(Var("fact"), Const(0)))), // same problem here
-            // Const(120))), // this works fine with "fix" in Interpreter's TODO
-        App(Var("fact"), Const(5))),
-      _ => 0) === 1 * 2 * 3 * 4 * 5)
+            Mult(Var("n"), App(Var("fact"), Minus(Var("n"), Const(1)))))),
+        App(Var("fact"), Const(n))),
+      _ => 0)
+    assert(callFact(5) === 1 * 2 * 3 * 4 * 5)
+    assert(callFact(1) === 1)
+    assert(callFact(0) === 1)
   }
 }
 
