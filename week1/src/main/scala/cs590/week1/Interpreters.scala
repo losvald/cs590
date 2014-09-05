@@ -53,31 +53,58 @@ trait Interpreter2 {
 
   abstract class Fun
   case class Clos(lam: Lam, env: Env) extends Fun
-  case class SC() extends Fun
+  case class Pred() extends Fun
   case class EQ1() extends Fun
   case class EQ2(arg1: Val) extends Fun
+  case class Mul1() extends Fun
+  case class Mul2(arg1: Val) extends Fun
 
   abstract class Env
   case class Init() extends Env
   case class Simp(bvar: Ident, bval: Val, old: Env) extends Env
+  case class Rec(letx: Letrec, old: Env) extends Env
 
   abstract class Exp
   case class Const(x: Val) extends Exp
   case class Var(s: Ident) extends Exp
   case class App(opr: Exp, opnd: Exp) extends Exp
   case class Lam(fp: Ident, body: Exp) extends Exp
-
-  /**
-    * TODO: implement second interpreter from paper
-    */
+  case class Cond(prem: Exp, conc: Exp, altr: Exp) extends Exp
+  case class Letrec(dvar: Ident, dexp: Lam, body: Exp) extends Exp
 
   def interpret(r: Exp) = eval(r, Init())
 
-  def eval(r: Exp, env: Env): Val = ???
+  def eval(r: Exp, e: Env): Val = r match {
+    case Const(x) => x
+    case Var(s) => get(e, s)
+    case App(opr, opnd) => apply(eval(opr, e).asInstanceOf[Fun], eval(opnd, e))
+    case r: Lam => Clos(r, e)
+    case Cond(prem, conc, altr) => {
+      if (eval(prem, e).asInstanceOf[Boolean]) eval(conc, e) else eval(altr, e)
+    }
+    case r: Letrec => eval(r.body, Rec(r, e))
+  }
 
-  def apply(f: Fun, a: Val): Val = ???
+  def apply(f: Fun, a: Val): Val = f match {
+    // TODO: just like in Interpreter1, we could enforce strong typing
+    // (e.g. case (a: Boolean, b: Boolean) => ... case (a: Int, b: Int) => ...)
+    case Clos(Lam(fp, body), env) => eval(body, Simp(fp, a, env))
+    case Pred() => a.asInstanceOf[Int] - 1
+    case EQ1() => EQ2(a)
+    case EQ2(b) => a == b
+    case Mul1() => Mul2(a)
+    case Mul2(b) => a.asInstanceOf[Int] * b.asInstanceOf[Int]
+  }
 
-  def get(env: Env, x: Ident): Val = ???
-
-
+  def get(e: Env, x: Ident): Val = e match {
+    case Init() => x match {
+      case "pred" => Pred()
+      case "eq1" => EQ1()
+      case "mul1" => Mul1()
+    }
+    case Simp(bvar, bval, eOld) => if (x == bvar) bval else get(eOld, x)
+    case Rec(letx, eOld) => {
+      if (x == letx.dvar) Clos(letx.dexp, e) else get(eOld, x)
+    }
+  }
 }
