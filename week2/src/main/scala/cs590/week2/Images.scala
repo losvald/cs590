@@ -22,7 +22,6 @@ trait ImagesPoly {
   type Point = (DoubleE, DoubleE)
   type Color = (DoubleE, DoubleE, DoubleE)
 
-  
   type DoubleE = Exp[Double]
 
   abstract class Exp[T]
@@ -35,7 +34,6 @@ trait ImagesPoly {
 }
 
 
-
 trait Codegen extends Images {
 
   def writeFile(name: String, content: String) {
@@ -44,7 +42,8 @@ trait Codegen extends Images {
     out.close()
   }
 
-  def generateImage(fileName: String, image: Image) = writeFile(fileName,template(fileName,image))
+  def generateImage(fileName: String, image: Image) =
+    writeFile(fileName,template(fileName,image))
 
   def eval(e: DoubleE): String = e match {
     case Sym(x) => x
@@ -100,6 +99,5 @@ trait Codegen extends Images {
       </div>
     </body>
     </html>"""
-
 
 }
