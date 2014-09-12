@@ -10,10 +10,17 @@ trait Images {
 
   abstract class DoubleE {
     def *(that: DoubleE) = Times(this, that)
+    def /(that: DoubleE) = Over(this, that)
+    def %(that: DoubleE) = Modulo(this, that)
+    def <(that: DoubleE) = LT(this, that)
   }
   case class Const(d: Double) extends DoubleE
   case class Sym(x: String) extends DoubleE
   case class Times(a: DoubleE, b: DoubleE) extends DoubleE
+  case class Over(a: DoubleE, b: DoubleE) extends DoubleE
+  case class Modulo(a: DoubleE, b: DoubleE) extends DoubleE
+  case class LT(a: DoubleE, b: DoubleE) extends DoubleE
+  case class If(prem: DoubleE, conc: DoubleE, altr: DoubleE) extends DoubleE
 
   implicit def unit(d: Double): DoubleE = Const(d)
 
@@ -54,10 +61,29 @@ trait Codegen extends Images {
   def generateImage(fileName: String, image: Image) =
     writeFile(fileName, template(fileName, image))
 
-  def eval(e: DoubleE): String = e match {
+  def opt(e: DoubleE): DoubleE = e match {
+    case Times(a, b) => Times(opt(a), opt(b)) match {
+      case Times(a: Const, b: Const) => Const(a.d * b.d)
+      case default => default
+    }
+    // analogous to the Times folding, but less verbose
+    case Over(a, b) => (opt(a), opt(b)) match {
+      case (a: Const, b: Const) => Const(a.d / b.d)
+      case (a, b) => Over(a, b)
+    }
+    case _ => e
+  }
+
+  def eval(e: DoubleE): String = opt(e) match {
     case Sym(x) => x
     case Const(d) => d.toString
     case Times(a, b) => s"(${eval(a)} * ${eval(b)})"
+    case Over(a, b) => s"(${eval(a)} / ${eval(b)})"
+    case Modulo(a, b) => s"(${eval(a)} % ${eval(b)})"
+    case LT(a, b) => s"(${eval(a)} < ${eval(b)})"
+    case If(prem, conc, altr) => {
+      s"(${eval(prem)} ? ${eval(conc)} : ${eval(altr)})"
+    }
   }
 
   def template(fileName: String, image: Image) = s"""
