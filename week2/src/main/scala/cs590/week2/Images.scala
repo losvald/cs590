@@ -1,5 +1,7 @@
 package cs590.week2
 
+import scala.language.implicitConversions
+
 trait Images {
 
   type Image = Point => Color
@@ -7,7 +9,7 @@ trait Images {
   type Color = (DoubleE, DoubleE, DoubleE, DoubleE)
 
   abstract class DoubleE {
-    def *(that: DoubleE) = Times(this,that)
+    def *(that: DoubleE) = Times(this, that)
   }
   case class Const(d: Double) extends DoubleE
   case class Sym(x: String) extends DoubleE
@@ -36,12 +38,10 @@ trait ImagesPoly {
   implicit def unit[T](d: T) = Const(d)
 
   implicit class DoubleOps(a: DoubleE) {
-    def *(b: DoubleE) = Times(a,b)
+    def *(b: DoubleE) = Times(a, b)
   }
 
-
 }
-
 
 trait Codegen extends Images {
 
@@ -52,12 +52,12 @@ trait Codegen extends Images {
   }
 
   def generateImage(fileName: String, image: Image) =
-    writeFile(fileName,template(fileName,image))
+    writeFile(fileName, template(fileName, image))
 
   def eval(e: DoubleE): String = e match {
     case Sym(x) => x
     case Const(d) => d.toString
-    case Times(a,b) => s"(${eval(a)} * ${eval(b)})"
+    case Times(a, b) => s"(${eval(a)} * ${eval(b)})"
   }
 
   def template(fileName: String, image: Image) = s"""
