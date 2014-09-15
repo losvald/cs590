@@ -13,6 +13,10 @@ trait Images {
     def /(that: DoubleE) = Over(this, that)
     def %(that: DoubleE) = Modulo(this, that)
     def <(that: DoubleE) = LT(this, that)
+    def +(that: DoubleE) = Plus(this, that)
+    // express - in terms of + and compl. to reduce number of cases in opt()
+    def -(that: DoubleE) = Plus(this, Compl(that))
+    // def unary_-: DoubleE = Compl(this)
   }
   case class Const(d: Double) extends DoubleE
   case class Sym(x: String) extends DoubleE
@@ -21,7 +25,27 @@ trait Images {
   case class Modulo(a: DoubleE, b: DoubleE) extends DoubleE
   case class LT(a: DoubleE, b: DoubleE) extends DoubleE
   case class If(prem: DoubleE, conc: DoubleE, altr: DoubleE) extends DoubleE
+  case class Plus(a: DoubleE, b: DoubleE) extends DoubleE
+  case class Sin(a: DoubleE) extends DoubleE
+  case class Cos(a: DoubleE) extends DoubleE
+  case class Compl(a: DoubleE) extends DoubleE
 
+  // let point expressions behave like macros that push evaluation inside,
+  // rather than having to do extra work in eval()
+  abstract class PointE(val x: DoubleE, val y: DoubleE) {
+    def +(d: PointE) = Trans(this, d)
+    def *(f: DoubleE) = Scale(this, f)
+    def toPoint = (x, y)
+  }
+  case class ID(p: Point) extends PointE(p._1, p._2)
+  case class Trans(p: PointE, d: PointE) extends PointE(p.x + d.x, p.y + d.y)
+  case class Scale(p: PointE, f: DoubleE) extends PointE(f * p.x, f * p.y)
+  case class Rot(p: PointE, a: DoubleE) extends PointE(
+    p.x * Cos(a) - p.y * Sin(a),
+    p.x * Sin(a) + p.y * Cos(a))
+
+  implicit def pointE2Point(e: PointE) = e.toPoint
+  implicit def point2PointE(p: Point) = ID(p)
   implicit def unit(d: Double): DoubleE = Const(d)
 
 }
@@ -84,6 +108,10 @@ trait Codegen extends Images {
     case If(prem, conc, altr) => {
       s"(${eval(prem)} ? ${eval(conc)} : ${eval(altr)})"
     }
+    case Plus(a, b) => s"(${eval(a)} + ${eval(b)})"
+    case Sin(a) => s"Math.sin(${eval(a)})"
+    case Cos(a) => s"Math.cos(${eval(a)})"
+    case Compl(a) => s"(-${eval(a)})"
   }
 
   def template(fileName: String, image: Image) = s"""
