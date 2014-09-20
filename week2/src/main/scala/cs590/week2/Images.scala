@@ -95,23 +95,39 @@ trait Codegen extends Images {
       case (a: Const, b: Const) => Const(a.d / b.d)
       case (a, b) => Over(a, b)
     }
+    // similarly, we could optimize the rest, but we just decide to propagate
+    case Modulo(a, b) => Modulo(opt(a), opt(b))
+    case LT(a, b) => LT(opt(a), opt(b))
+    case If(prem, conc, altr) => opt(prem) match {
+      case Const(prem) => if (Math.abs(prem) > 1e-9) opt(conc) else opt(altr)
+      case prem => If(prem, opt(conc), opt(altr))
+    }
+    case Plus(a, b) => Plus(opt(a), opt(b))
+    case Sin(a) => Sin(opt(a))
+    case Cos(a) => Cos(opt(a))
+    case c: Compl => opt(c.a) match {
+      case Compl(a) => a
+      case _ => c
+    }
     case _ => e
   }
 
-  def eval(e: DoubleE): String = opt(e) match {
+  def eval(e: DoubleE): String = eval0(opt(e))
+
+  def eval0(e: DoubleE): String = e match {
     case Sym(x) => x
     case Const(d) => d.toString
-    case Times(a, b) => s"(${eval(a)} * ${eval(b)})"
-    case Over(a, b) => s"(${eval(a)} / ${eval(b)})"
-    case Modulo(a, b) => s"(${eval(a)} % ${eval(b)})"
-    case LT(a, b) => s"(${eval(a)} < ${eval(b)})"
+    case Times(a, b) => s"(${eval0(a)} * ${eval0(b)})"
+    case Over(a, b) => s"(${eval0(a)} / ${eval0(b)})"
+    case Modulo(a, b) => s"(${eval0(a)} % ${eval0(b)})"
+    case LT(a, b) => s"(${eval0(a)} < ${eval0(b)})"
     case If(prem, conc, altr) => {
-      s"(${eval(prem)} ? ${eval(conc)} : ${eval(altr)})"
+      s"(${eval0(prem)} ? ${eval0(conc)} : ${eval0(altr)})"
     }
-    case Plus(a, b) => s"(${eval(a)} + ${eval(b)})"
-    case Sin(a) => s"Math.sin(${eval(a)})"
-    case Cos(a) => s"Math.cos(${eval(a)})"
-    case Compl(a) => s"(-${eval(a)})"
+    case Plus(a, b) => s"(${eval0(a)} + ${eval0(b)})"
+    case Sin(a) => s"Math.sin(${eval0(a)})"
+    case Cos(a) => s"Math.cos(${eval0(a)})"
+    case Compl(a) => s"(-${eval0(a)})"
   }
 
   def template(fileName: String, image: Image) = s"""
