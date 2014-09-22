@@ -110,13 +110,22 @@ trait Codegen extends Images {
       case (a, b) => Over(a, b)
     }
     // similarly, we could optimize the rest, but we just decide to propagate
-    case Modulo(a, b) => Modulo(opt(a), opt(b))
-    case LT(a, b) => LT(opt(a), opt(b))
+    case Modulo(a, b) => (opt(a), opt(b)) match {
+      case (a: Const, b: Const) => Const(a.d % b.d)
+      case (a, b) => Modulo(a, b)
+    }
+    case LT(a, b) => (opt(a), opt(b)) match {
+      case (a: Const, b: Const) => Const(if (a.d < b.d) 1.0 else 0.0)
+      case (a, b) => LT(a, b)
+    }
     case If(prem, conc, altr) => opt(prem) match {
       case Const(prem) => if (Math.abs(prem) > 1e-9) opt(conc) else opt(altr)
       case prem => If(prem, opt(conc), opt(altr))
     }
-    case Plus(a, b) => Plus(opt(a), opt(b))
+    case Plus(a, b) => (opt(a), opt(b)) match {
+      case (a: Const, b: Const) => Const(a.d + b.d)
+      case (a, b) => Plus(a, b)
+    }
     case Sin(a) => Sin(opt(a))
     case Cos(a) => Cos(opt(a))
     case c: Compl => opt(c.a) match {

@@ -73,6 +73,14 @@ class ImagesTest extends FunSuite with Images with Codegen with BeforeAndAfter {
     generateImage("checkers-transformed.html", checkers_transformed)
   }
 
+  test("opt - complex") {
+    assert(eval(
+      If(LT(Const(0.2), Over(Const(1), Const(4))),
+        Compl(Compl(Times(Sym("x"), 2))),
+        Over(Sym("y"), Const(0)))
+    ) === eval(Times(Sym("x"), 2)))
+  }
+
   test("no CSE - each symbol once") {
     val e = Plus(
       Times(
