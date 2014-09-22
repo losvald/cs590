@@ -1,6 +1,11 @@
 package cs590.week2
 
 import scala.language.implicitConversions
+import scala.collection.immutable.Queue
+import scala.collection.immutable.Stack
+import scala.collection.immutable.HashSet
+import scala.collection.immutable.HashMap
+import util.control.Breaks._
 
 trait Images {
 
@@ -18,17 +23,26 @@ trait Images {
     def -(that: DoubleE) = Plus(this, Compl(that))
     // def unary_-: DoubleE = Compl(this)
   }
+  abstract class DoubleEBin(a: DoubleE, b: DoubleE) extends DoubleE {
+    // def unapply(binOp: DoubleEBin) = Some((binOp.a, binOp.b))
+  }
   case class Const(d: Double) extends DoubleE
   case class Sym(x: String) extends DoubleE
-  case class Times(a: DoubleE, b: DoubleE) extends DoubleE
-  case class Over(a: DoubleE, b: DoubleE) extends DoubleE
-  case class Modulo(a: DoubleE, b: DoubleE) extends DoubleE
-  case class LT(a: DoubleE, b: DoubleE) extends DoubleE
+  case class Times(a: DoubleE, b: DoubleE) extends DoubleEBin(a, b)
+  case class Over(a: DoubleE, b: DoubleE) extends DoubleEBin(a, b)
+  case class Modulo(a: DoubleE, b: DoubleE) extends DoubleEBin(a, b)
+  case class LT(a: DoubleE, b: DoubleE) extends DoubleEBin(a, b)
   case class If(prem: DoubleE, conc: DoubleE, altr: DoubleE) extends DoubleE
-  case class Plus(a: DoubleE, b: DoubleE) extends DoubleE
+  case class Plus(a: DoubleE, b: DoubleE) extends DoubleEBin(a, b)
   case class Sin(a: DoubleE) extends DoubleE
   case class Cos(a: DoubleE) extends DoubleE
   case class Compl(a: DoubleE) extends DoubleE
+  case class Let(sym: Sym, exp: DoubleE, body: DoubleE) extends DoubleE
+
+  object Binary {
+    def unapply(e: Times) = Times.unapply(e)
+    def unapply(e: Over) = Over.unapply(e)
+  }
 
   // let point expressions behave like macros that push evaluation inside,
   // rather than having to do extra work in eval()
@@ -112,7 +126,195 @@ trait Codegen extends Images {
     case _ => e
   }
 
-  def eval(e: DoubleE): String = eval0(opt(e))
+  var printOrd = -1 // for debugging, set by unittest in before/after()
+
+  def cse(eTopLevel: DoubleE): DoubleE = {
+    val ret = eTopLevel
+    var letId = 0
+
+    def letify(e: DoubleE, s1: HashSet[DoubleE], s2: HashSet[DoubleE]):
+        Tuple2[DoubleE, HashSet[DoubleE]] = {
+      if (printOrd == 0)
+        System.err.print("Letifying: " + e + "[\n" + s1 + "\n|\n" + s2 + "\n]")
+      val sCommon = s1 & s2
+      if (sCommon.isEmpty) {
+        if (printOrd == 0) System.err.println()
+        return (e, s1 ++ s2 + e)
+      }
+
+      if (printOrd == 0) System.err.println(" =(s1&s2)=> " + sCommon)
+
+      // We need to topologically sort because upon merging children sets
+      // several nesting CSE can appear.  For example,
+      //    if               Let(e1, E1,
+      //   /|\                 Let(e2, E2,
+      //  / | \                     if
+      // E1 E2 E4      --->        /|\
+      //   / |  \                 / | \
+      //  E3 E1 E2               e1 e2 E4
+      //        | \                     \
+      //       E3 E1                    e2
+      // must yield Let(e1, E1, Let(e2, E2, ...)), not Let(e2, E2, Let(e1, ...))
+      // (note that nesting cannot contradict because of deep equality,
+      // e.g. E2 cannot be a descendant of E1, nor can E1 be an ancestor of E4).
+      // Therefore, e2 must be pulled up (substituted for E2) before e1
+      // (this also prunes unnecessary substitions of E1 within E2's subtree).
+      def topoSort(q0: Queue[DoubleE]): Stack[DoubleE] = {
+        // val e = q0.dequeue match {
+        // def caseBinOp[A <: DoubleEBin](e: A): DoubleE = {
+        //   e.a
+        // }
+        try {
+          val (e, q) = q0.dequeue
+          val sorted = e match {
+            // TODO: can I somehow match against type [T <: DoubleE] T(a, b)?
+            // case DoubleEBin(a, b) => topoSort(q :+ e.a :+ e.b)
+            // case Binary(a, b) => topoSort(q :+ a :+ b)
+            case Times(a, b) => topoSort(q :+ a :+ b)
+            case Over(a, b) => topoSort(q :+ a :+ b)
+            case Modulo(a, b) => topoSort(q :+ a :+ b)
+            case LT(a, b) => topoSort(q :+ a :+ b)
+            case Plus(a, b) => topoSort(q :+ a :+ b)
+            case If(prem, conc, altr) => topoSort(q :+ prem :+ conc :+ altr)
+            case Sin(a) => topoSort(q :+ a)
+            case Cos(a) => topoSort(q :+ a)
+            case Compl(a) => topoSort(q :+ a)
+            case _ => topoSort(q)
+          }
+          if (sCommon.contains(e)) sorted.push(e) else sorted
+        } catch {
+          case _: NoSuchElementException => Stack[DoubleE]()
+        }
+      }
+      val sCommonSorted = topoSort(Queue(e))
+      if (printOrd == 0) System.err.println(" =(topoSort)=> " + sCommonSorted)
+
+      var eWithLets = e // XXX: make this pure using foldLeft instead of for
+      var sCommonBound = HashSet[DoubleE]()
+      for (common <- sCommonSorted) breakable {
+        if (sCommonBound.contains(common)) {
+          if (printOrd == 0)
+            System.err.println(" SKIPPED repeated CSE: " + common)
+          break // proceed with the next iteration of the for-loop
+        }
+
+        sCommonBound = sCommonBound + common
+        letId += 1
+        val pullSym = Sym("_cse" + letId)
+
+        def pullUp(e: DoubleE, topLevel: Boolean = false): DoubleE = {
+          if (e == common) pullSym
+          else e match {
+            case Let(sym, exp, body) => {
+              // Note that common might be bound in exp of a Let, not only body,
+              // and that let should be skipped when determining topLevel.
+              Let(sym, pullUp(exp), pullUp(body, topLevel))
+            }
+            case If(prem, conc, altr) => {
+              // XXX: no special care required for If because, by transitiviy,
+              // XXX: only exprs common to both branches are examined
+              // Do not pull up from either branch since it is not safe
+              // (if they share a CSE, it would've been pulled up already),
+              // unless it is the topLevel (the first non-Let expr to execute)
+              if (topLevel) If(pullUp(prem), pullUp(conc), pullUp(altr))
+              else If(pullUp(prem), conc, altr)
+            }
+            case Times(a, b) => Times(pullUp(a), pullUp(b))
+            case Modulo(a, b) => Modulo(pullUp(a), pullUp(b))
+            case Over(a, b) => Over(pullUp(a), pullUp(b))
+            case LT(a, b) => LT(pullUp(a), pullUp(b))
+            case Plus(a, b) => Plus(pullUp(a), pullUp(b))
+            case Sin(a) => Sin(pullUp(a))
+            case Cos(a) => Cos(pullUp(a))
+            case Compl(a) => Compl(pullUp(a))
+            case _ => e
+          }
+        }
+        eWithLets = Let(pullSym, common, pullUp(eWithLets, true))
+        if (printOrd == 0) {
+          System.err.println(" PULLED UP: " + pullSym + " @ " + common)
+          System.err.println("  =(pullUp)=>" + eWithLets)
+        }
+      }
+      if (printOrd == 0)
+        System.err.println(" =(letify)=> " + eWithLets)
+      (eWithLets, s1 ++ s2 + e)
+    }
+
+    def cse1(e: DoubleE): Tuple2[DoubleE, HashSet[DoubleE]] = {
+      val (e2, s2) = e match {
+        case If(prem, conc, altr) => {
+          val (conc2, concS) = cse1(conc)
+          val (altr2, altrS) = cse1(altr)
+          val commonS = concS & altrS
+          val (prem2, premS) = cse1(prem)
+          // First, we pull up CSEs that are shared by both branches.  Then,
+          // we pull up CSEs that are shared among prem and either branch.
+          val (either, eitherS) = letify(If(prem2, conc2, altr2), concS, altrS)
+          letify(either, premS, concS & altrS)
+        }
+        // TODO: How to avoid these boilerplate repetition in match cases?
+        case Times(a, b) => {
+          val ((a2, aS), (b2, bS)) = (cse1(a), cse1(b))
+          letify(Times(a2, b2), aS, bS)
+        }
+        case Modulo(a, b) => {
+          val ((a2, aS), (b2, bS)) = (cse1(a), cse1(b))
+          letify(Modulo(a2, b2), aS, bS)
+        }
+        case Over(a, b) => {
+          val ((a2, aS), (b2, bS)) = (cse1(a), cse1(b))
+          letify(Over(a2, b2), aS, bS)
+        }
+        case LT(a, b) => {
+          val ((a2, aS), (b2, bS)) = (cse1(a), cse1(b))
+          letify(LT(a2, b2), aS,  bS)
+        }
+        case Plus(a, b) => {
+          val ((a2, aS), (b2, bS)) = (cse1(a), cse1(b))
+          letify(Plus(a2, b2), aS, bS)
+        }
+        case Sin(a) => {
+          val (a2, aS) = cse1(a)
+          (Sin(a), aS + e)
+        }
+        case Cos(a) => {
+          val (a2, aS) = cse1(a)
+          (Cos(a2), aS + e)
+        }
+        case Compl(a) => {
+          val (a2, aS) = cse1(a)
+          (Compl(a2), aS + e)
+        }
+        // the remaining operations are too cheap for CSE (Const, Sym, etc.)
+        case _ => (e, HashSet[DoubleE]())
+      }
+      (e2, s2)
+    }
+    val (e2, s2) = cse1(eTopLevel)
+    if (printOrd == 0)
+      System.out.println("=(cse1)=> " + e2)
+
+    e2
+  }
+
+  def eval(e: DoubleE): String = {
+    printOrd -= 1
+    if (printOrd == 0) {
+      System.err.println("> eval(\n" + e.toString)
+    }
+    val eOpt = opt(e)
+    if (printOrd == 0) {
+      if (e.toString != eOpt.toString) {
+        System.err.println(") =(opt)=> eval(\n" + eOpt.toString)
+      }
+      System.err.println(")")
+    }
+    val ret = eval0(cse(eOpt))
+    if (printOrd == 0)
+      System.err.println("=(eval)=> " + ret)
+    ret
+  }
 
   def eval0(e: DoubleE): String = e match {
     case Sym(x) => x
@@ -128,6 +330,10 @@ trait Codegen extends Images {
     case Sin(a) => s"Math.sin(${eval0(a)})"
     case Cos(a) => s"Math.cos(${eval0(a)})"
     case Compl(a) => s"(-${eval0(a)})"
+    case Let(sym, exp, body) => {
+      // use JS closure & application to achieve the functional effect of Let
+      s"function(${eval0(sym)}){ return ${eval0(body)}; }(${eval0(exp)})"
+    }
   }
 
   def template(fileName: String, image: Image) = s"""
