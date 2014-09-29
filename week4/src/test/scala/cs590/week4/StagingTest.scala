@@ -7,7 +7,7 @@ import java.io.PrintWriter
 class StagingTest extends FunSuite {
 
   test("power1") {
-    val driver = new Power1 with ScalaOpsPkgExp with CompileScala { self => 
+    val driver = new Power1 with ScalaOpsPkgExp with CompileScala { self =>
       val codegen = new ScalaCodeGenPkg { val IR: self.type = self }
     }
 
@@ -15,7 +15,7 @@ class StagingTest extends FunSuite {
       import driver._
 
       val power4 = (x:Rep[Double]) => power(x,4)
-      
+
       codegen.emitSource(power4, "Power4", new PrintWriter(System.out))
       compile(power4)
     }

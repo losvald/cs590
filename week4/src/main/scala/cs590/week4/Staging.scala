@@ -4,7 +4,7 @@ import scala.virtualization.lms.common._
 
 trait Power1 extends ScalaOpsPkg with LiftNumeric {
 
-  def power(b: Rep[Double], x: Int): Rep[Double] = 
+  def power(b: Rep[Double], x: Int): Rep[Double] =
     if (x == 0) 1.0 else b * power(b, x - 1)
 
 }
@@ -20,7 +20,7 @@ trait Power2 extends ScalaOpsPkg with LiftNumeric {
 
 
 trait FFT extends ScalaOpsPkg with LiftNumeric with Trig {
-  
+
   def omega(k: Int, N: Int): Complex = {
     val kth = -2.0 * k * math.Pi / N
     Complex(cos(kth), sin(kth))
@@ -29,23 +29,29 @@ trait FFT extends ScalaOpsPkg with LiftNumeric with Trig {
   case class Complex(re: Rep[Double], im: Rep[Double]) {
     def +(that: Complex) = Complex(this.re + that.re, this.im + that.im)
     def -(that: Complex) = Complex(this.re - that.re, this.im - that.im)
-    def *(that: Complex) = Complex(this.re * that.re - this.im * that.im, this.re * that.im + this.im * that.re)
+    def *(that: Complex) = Complex(
+      this.re * that.re - this.im * that.im,
+      this.re * that.im + this.im * that.re)
   }
 
-  def splitEvenOdd[T](xs: List[T]): (List[T], List[T]) = (xs: @unchecked) match {
-    case e :: o :: xt =>
-      val (es, os) = splitEvenOdd(xt)
-      ((e :: es), (o :: os))
-    case Nil => (Nil, Nil)
-    // cases?
+  def splitEvenOdd[T](xs: List[T]): (List[T], List[T]) = {
+    (xs: @unchecked) match {
+      case e :: o :: xt =>
+        val (es, os) = splitEvenOdd(xt)
+        ((e :: es), (o :: os))
+      case Nil => (Nil, Nil)
+        // cases?
+    }
   }
 
-  def mergeEvenOdd[T](even: List[T], odd: List[T]): List[T] = ((even, odd): @unchecked) match {
-    case (Nil, Nil) =>
-      Nil
-    case ((e :: es), (o :: os)) =>
-      e :: (o :: mergeEvenOdd(es, os))
-    // cases?
+  def mergeEvenOdd[T](even: List[T], odd: List[T]): List[T] = {
+    ((even, odd): @unchecked) match {
+      case (Nil, Nil) =>
+        Nil
+      case ((e :: es), (o :: os)) =>
+        e :: (o :: mergeEvenOdd(es, os))
+        // cases?
+    }
   }
 
   def fft(xs: List[Complex]): List[Complex] = xs match {
@@ -87,7 +93,7 @@ trait TrigExpOpt extends TrigExp {
     case Const(x) => unit(math.sin(x))
     case _ => super.sin(x)
   }
-  
+
   override def cos(x: Exp[Double]) = x match {
     case Const(x) => unit(math.cos(x))
     case _ => super.cos(x)
