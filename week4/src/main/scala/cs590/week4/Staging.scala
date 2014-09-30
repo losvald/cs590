@@ -13,10 +13,15 @@ trait Power1 extends ScalaOpsPkg with LiftNumeric {
 
 trait Power2 extends ScalaOpsPkg with LiftNumeric {
 
-  def power(b: Rep[Double], x: Int): Rep[Double] = ???
-
-  // TODO: implement recursive algorithm that takes only
-  // log x multiplications (hint: repeated squaring!)
+  def power(b: Rep[Double], x: Int): Rep[Double] = {
+    if (x == 0) 1.0
+    else if (x % 2 != 0) b * power(b, x - 1)
+    // else power(b, x / 2) * power(b, x / 2) // OK because of tail rec opt.
+    else { // don't rely on tail recursion optimization
+      val root = power(b, x / 2)
+      root * root
+    }
+  }
 
 }
 
