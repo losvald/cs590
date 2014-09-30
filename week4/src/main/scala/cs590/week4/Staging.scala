@@ -2,6 +2,8 @@ package cs590.week4
 
 import scala.virtualization.lms.common._
 
+import scala.language.postfixOps // avoid warning about unzip
+
 trait Power1 extends ScalaOpsPkg with LiftNumeric {
 
   def power(b: Rep[Double], x: Int): Rep[Double] =

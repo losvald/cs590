@@ -18,4 +18,4 @@ libraryDependencies += "org.scalatest" % "scalatest_2.10" % "2.0.M5b" % "test"
 
 libraryDependencies += "org.scala-lang.virtualized" % "scala-actors" % "2.10.2" % "test"
 
-scalacOptions += "-Yvirtualize"
+scalacOptions += "-Yvirtualize -unchecked -deprecation -feature"
