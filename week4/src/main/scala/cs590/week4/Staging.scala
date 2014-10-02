@@ -3,6 +3,7 @@ package cs590.week4
 import scala.virtualization.lms.common._
 
 import scala.language.postfixOps // avoid warning about unzip
+import scala.language.implicitConversions
 
 trait Power1 extends ScalaOpsPkg with LiftNumeric {
 
@@ -26,7 +27,10 @@ trait Power2 extends ScalaOpsPkg with LiftNumeric {
 }
 
 
-trait FFT extends ScalaOpsPkg with LiftNumeric with Trig {
+// trait FFT extends ScalaOpsPkg with LiftNumeric with Trig {
+// trait FFT extends LiftNumeric with Trig {
+// trait FFT extends LiftNumeric with Trig with Arith {
+trait FFT extends LiftNumeric { this: Trig with Arith =>
 
   def omega(k: Int, N: Int): Complex = {
     val kth = -2.0 * k * math.Pi / N
@@ -77,6 +81,14 @@ trait FFT extends ScalaOpsPkg with LiftNumeric with Trig {
 
 }
 
+trait TrigExpOptFFT extends TrigExpOpt {
+  override def cos(x: Exp[Double]) = x match {
+    case Const(x) if {
+      val z = x / math.Pi / 0.5; z != 0 && z == z.toInt
+    } => Const(0.0)
+    case _ => super.cos(x)
+  }
+}
 
 trait Trig extends Base {
 
@@ -106,4 +118,73 @@ trait TrigExpOpt extends TrigExp {
     case _ => super.cos(x)
   }
 
+}
+
+trait ArithExpOptFFT extends ArithExpOpt {
+
+  override def infix_+(x: Exp[Double], y: Exp[Double]) = (x, y) match {
+    case (x, Def(Plus(Const(0.0) | Const(-0.0), y))) => infix_+(x, y)
+    case _ => super.infix_+(x, y)
+  }
+
+  override def infix_-(x: Exp[Double], y: Exp[Double]) = (x, y) match {
+    case (x, Def(Minus(Const(0.0) | Const(-0.0), y))) => infix_+(x, y)
+    case _ => super.infix_-(x, y)
+  }
+
+  override def infix_*(x: Exp[Double], y: Exp[Double]) = (x, y) match {
+    case (x, Const(-1.0)) => infix_-(Const(0.0), x)
+    case (Const(-1.0), y) => infix_-(Const(0.0), y)
+    case _ => super.infix_*(x, y)
+  }
+
+}
+
+trait ArithExpOpt extends ArithExp {
+
+  override def infix_+(x: Exp[Double], y: Exp[Double]) = (x, y) match {
+    case (Const(x), Const(y)) => Const(x + y)
+    case (x, Const(0.0) | Const(-0.0)) => x
+    case (Const(0.0) | Const(-0.0), y) => y
+    case _ => super.infix_+(x, y)
+  }
+
+  override def infix_-(x: Exp[Double], y: Exp[Double]) = (x, y) match {
+    case (Const(x), Const(y)) => Const(x - y)
+    case (x, Const(0.0) | Const(-0.0)) => x
+    case _ => super.infix_-(x, y)
+  }
+
+  override def infix_*(x: Exp[Double], y: Exp[Double]) = (x, y) match {
+    case (Const(x), Const(y)) => Const(x * y)
+    case (x, Const(1.0)) => x
+    case (Const(1.0), y) => y
+    case (x, Const(0.0) | Const(-0.0)) => Const(0.0)
+    case (Const(0.0) | Const(-0.0), y) => Const(0.0)
+    case _ => super.infix_*(x, y)
+  }
+}
+
+// TODO: not sure I need the rest; can probably make use of ScalaOpsPkg somehow
+
+trait Arith extends Base {
+  class arithOps(x: Rep[Double]){
+    def +(y: Rep[Double]) = infix_+(x,y)
+    def -(y: Rep[Double]) = infix_-(x,y)
+    def *(y: Rep[Double]) = infix_*(x,y)
+  }
+
+  def infix_+(x: Rep[Double], y: Rep[Double]): Rep[Double]
+  def infix_-(x: Rep[Double], y: Rep[Double]): Rep[Double]
+  def infix_*(x: Rep[Double], y: Rep[Double]): Rep[Double]
+}
+
+trait ArithExp extends Arith with BaseExp {
+  case class Plus(x: Exp[Double], y: Exp[Double]) extends Def[Double]
+  case class Minus(x: Exp[Double], y: Exp[Double]) extends Def[Double]
+  case class Times(x: Exp[Double], y: Exp[Double]) extends Def[Double]
+
+  def infix_+(x: Exp[Double], y: Exp[Double]) = Plus(x, y)
+  def infix_-(x: Exp[Double], y: Exp[Double]) = Minus(x, y)
+  def infix_*(x: Exp[Double], y: Exp[Double]) = Times(x, y)
 }
